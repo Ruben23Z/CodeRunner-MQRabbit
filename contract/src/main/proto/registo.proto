@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+// Contrato a: ManagerServer <-> RunServer
+service RegistoService {
+  // O RunServer indica o IP e porto onde já está a ouvir (contrato c) e recebe o endereço do REDIS.
+  // Idempotente: um novo registo do mesmo ip:porto não duplica a entrada.
+  // Erros: INVALID_ARGUMENT (ip vazio ou porto fora de 1-65535).
+  rpc registar(RunServerInfo) returns (RedisInfo);
+}
+
+message RunServerInfo {
+  string ip = 1;     // IP alcançável pelos clientes (argumento --ip)
+  int32 porto = 2;
+}
+
+message RedisInfo {
+  string ip = 1;
+  int32 porto = 2;
+}

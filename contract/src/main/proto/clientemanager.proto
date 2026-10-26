@@ -1,0 +1,15 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+
+// Contrato b: ManagerServer <-> Client
+service ClienteManagerService {
+  // Devolve o IP e porto de um RunServer (round-robin sobre os registados nesse momento).
+  // Erros: UNAVAILABLE (nenhum RunServer registado).
+  rpc obterServidor(google.protobuf.Empty) returns (RunServerEndereco);
+}
+
+
+message RunServerEndereco {
+  string ip = 1;
+  int32 porto = 2;
+}

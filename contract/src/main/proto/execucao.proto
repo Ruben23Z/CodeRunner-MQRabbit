@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+// Contrato c: RunServer <-> Client
+// (também usado por um RunServer para pedir o resultado ao RunServer que executou o pedido)
+service ExecucaoService {
+  // Client streaming: blocos de até 64 KB do programa (máx. 1 MB) e, opcionalmente, do input (máx. 1 MB).
+  // Responde de imediato com o UUID, sem esperar pela execução.
+  // Erros: INVALID_ARGUMENT (sem programa ou limites excedidos),
+  //        RESOURCE_EXHAUSTED (fila cheia; nada foi criado, o cliente pode pedir outro servidor),
+  //        UNAVAILABLE (REDIS indisponível).
+  rpc submeter(stream BlocoSubmissao) returns (PedidoId);
+
+  // Server streaming: 1.ª mensagem = InfoPedido; seguem-se blocos de out.txt e de err.txt
+  // (cada um truncado a 1 MB) apenas se resultadoDisponivel = true.
+  // Erros: NOT_FOUND (id inexistente), UNAVAILABLE (RunServer dono inacessível).
+  rpc obterResultado(PedidoId) returns (stream BlocoResultado);
+}
+
+message BlocoSubmissao {
+  oneof conteudo {
+    bytes programa = 1;// bloco de prog.py
+    bytes input = 2;// bloco de input.txt (stdin), opcional
+  }
+}
+
+message PedidoId {
+  string id = 1; // UUID
+}
+
+enum Estado {
+  ESTADO_DESCONHECIDO = 0;// proto3 obriga a que o primeiro valor seja 0
+  PENDENTE = 1; // na fila, até o worker iniciar a execução
+  EM_EXECUCAO = 2; // o worker iniciou a execução (container a criar ou a correr)
+  CONCLUIDO = 3; // exit.txt = 0
+  TIMEOUT = 4; // exit.txt = 124
+  ERRO = 5; // outro valor ou exit.txt ausente
+}
+
+message BlocoResultado {
+  oneof conteudo {//só um dos campos deste grupo pode estar definido de cada vez.
+    InfoPedido info = 1;// sempre na 1.ª mensagem
+    bytes out = 2; // bloco de out.txt (stdout)
+    bytes err = 3; // bloco de err.txt (stderr)
+  }
+}
+
+message InfoPedido {
+  string id = 1;
+  Estado estado = 2;
+  int32 codigoSaida = 3; // valor de exit.txt (se terminou)
+  bool resultadoDisponivel = 4; // false se PENDENTE/EM_EXECUCAO, já entregue, expirado ou entrega em curso
+  string mensagem = 5; // ex.: "resultado já obtido e removido", "resultado expirado e removido", "output truncado a 1 MB"
+}
