@@ -1,9 +1,11 @@
 syntax = "proto3";
-
+option java_multiple_files = true;
+option java_package = "execucaostubs";
+package execucao;
 // Contrato c: RunServer <-> Client
 // (também usado por um RunServer para pedir o resultado ao RunServer que executou o pedido)
 service ExecucaoService {
-  // Client streaming: blocos de até 64 KB do programa (máx. 1 MB) e, opcionalmente, do input (máx. 1 MB).
+  // Client streaming: blocos de até 64 KB do programa (máx. 1 MB) e input
   // Responde de imediato com o UUID, sem esperar pela execução.
   // Erros: INVALID_ARGUMENT (sem programa ou limites excedidos),
   //        RESOURCE_EXHAUSTED (fila cheia; nada foi criado, o cliente pode pedir outro servidor),
