@@ -51,7 +51,7 @@ public class RunServerMain {
         RedisPedidos redisPedidos = new RedisPedidos(redis.getIp(), redis.getPorto());
         DockerUtil du = new DockerUtil();
         DockerClient docker = du.criarCliente();
-        du.removerOrfaos(docker);
+        du.removerOrfaos(docker, redis.getPorto());
         Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto()));
         Retencao retencao = new Retencao();
         retencao.iniciar(pastaPedidos, Duration.ofMinutes(10));

@@ -14,10 +14,12 @@ public class DockerUtil {
         return DockerClientImpl.getInstance(config, http);
     }
 
-    public void removerOrfaos(DockerClient docker){
+    public void removerOrfaos(DockerClient docker, int porto){
+        String prefixo = "/run-" + porto + "-";
+
         for(Container c: docker.listContainersCmd().withShowAll(true).exec()){
             for(String nome: c.getNames()){
-                if(nome.startsWith("/run-")){
+                if (nome.startsWith(prefixo)) {
                     docker.removeContainerCmd(c.getId()).withForce(true).exec();
                     System.out.println("Removido container órfão " + nome);
                 }

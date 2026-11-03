@@ -7,9 +7,9 @@ dependencies {
     implementation(project(":contract"))
     implementation("redis.clients:jedis:7.5.3")
     implementation("com.github.docker-java:docker-java-core:3.7.1")
-    implementation("com.github.docker-java:docker-java-transport-httpclient5:3.7.1")
     runtimeOnly("org.slf4j:slf4j-simple:1.7.36")
-    implementation("com.github.docker-java:docker-java-transport-zerodep:3.4.0")
+    implementation("com.github.docker-java:docker-java-transport-zerodep:3.7.1")
+
 }
 
 application { mainClass = "coderunner.runserver.RunServerMain" }

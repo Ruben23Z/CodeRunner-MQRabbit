@@ -22,8 +22,11 @@ public class RedisPedidos {
             j.hset(chave(id), Map.of(
                     "estado", "PENDENTE",
                     "ip", ip,
-                    "porto", String.valueOf(porto)));
+                    "servidor", ip + ":" + porto));
+            j.expire(chave(id), 86400);
+
         }
+
     }
 
     public void atualizarEstado(String id, String estado) {
@@ -42,4 +45,13 @@ public class RedisPedidos {
     public void fechar() {
         pool.close();
     }
+    public void concluir(String id, String estado, String codigoSaida){
+        try (Jedis j = pool.getResource()) {
+            j.hset(chave(id), Map.of(
+                    "estado", estado,
+                    "codigoSaida", String.valueOf(codigoSaida)));
+        }
+    }
+
+
 }
