@@ -1,16 +1,16 @@
 package coderunner.runserver;
 
-import com.github.dockerjava.core.DefaultDockerClientConfig;
-
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
-import com.github.dockerjava.zerodep.ZerodepDockerHttpClient;
+import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
+import com.github.dockerjava.transport.DockerHttpClient;
+
 public class DockerUtil {
     public DockerClient criarCliente(){
         var config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
-        var http = new ZerodepDockerHttpClient.Builder().dockerHost(config.getDockerHost()).sslConfig(config.getSSLConfig()).build();
+        DockerHttpClient http = new ApacheDockerHttpClient.Builder().dockerHost(config.getDockerHost()).sslConfig(config.getSSLConfig()).build();
         return DockerClientImpl.getInstance(config, http);
     }
 

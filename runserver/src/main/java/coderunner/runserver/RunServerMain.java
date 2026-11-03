@@ -3,7 +3,6 @@ package coderunner.runserver;
 import com.github.dockerjava.api.DockerClient;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import redis.clients.jedis.JedisPool;
 import registostubs.RedisInfo;
 
 import java.nio.file.Path;
@@ -49,9 +48,20 @@ public class RunServerMain {
         System.out.println("Registado no Manager. REDIS em " + redis.getIp());
 
         RedisPedidos redisPedidos = new RedisPedidos(redis.getIp(), redis.getPorto());
+        try {
+            redisPedidos.ping();
+        } catch (Exception e) {
+            System.err.println("Erro: REDIS inacessível em " + redis.getIp() + ":" + redis.getPorto()
+                    + " (" + e.getMessage() + ")");
+            server.shutdownNow();
+            System.exit(1);
+            return;
+        }
+        System.out.println("REDIS ligado");
+
         DockerUtil du = new DockerUtil();
         DockerClient docker = du.criarCliente();
-        du.removerOrfaos(docker, redis.getPorto());
+        du.removerOrfaos(docker, cfg.getPorto());
         Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto()));
         Retencao retencao = new Retencao();
         retencao.iniciar(pastaPedidos, Duration.ofMinutes(10));
