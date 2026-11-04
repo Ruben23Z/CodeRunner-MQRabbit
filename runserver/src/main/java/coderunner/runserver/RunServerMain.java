@@ -68,7 +68,6 @@ public class RunServerMain {
         servico.libertar(redisPedidos);
 
 
-        // prof valoriza mais os objetivos em si do trabalho, como o envio e rececao da info do servidor etc. coisas como o retry são minimasz
     }
 
 }
