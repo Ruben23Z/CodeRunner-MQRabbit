@@ -1,4 +1,4 @@
-package coderunner.runserver;
+package runserver;
 
 import com.github.dockerjava.api.DockerClient;
 import io.grpc.Server;

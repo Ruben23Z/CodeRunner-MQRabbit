@@ -1,8 +1,5 @@
-package coderunner.manager;
+package manager;
 
-import coderunner.manager.registration.RegistoServiceImpl;
-import coderunner.manager.registration.ServerRegistry;
-import coderunner.manager.selection.ClienteManagerServiceImpl;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 

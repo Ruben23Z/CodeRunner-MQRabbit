@@ -1,9 +1,7 @@
-package coderunner.manager.selection;
+package manager;
 
 import clientemanagerstubs.ClienteManagerServiceGrpc;
 import clientemanagerstubs.RunServerEndereco;
-import coderunner.manager.registration.Endereco;
-import coderunner.manager.registration.ServerRegistry;
 import com.google.protobuf.Empty;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

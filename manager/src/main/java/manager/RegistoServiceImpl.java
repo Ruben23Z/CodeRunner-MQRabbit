@@ -1,4 +1,4 @@
-package coderunner.manager.registration;
+package manager;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

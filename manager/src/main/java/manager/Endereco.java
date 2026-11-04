@@ -1,4 +1,4 @@
-package coderunner.manager.registration;
+package manager;
 
 import java.util.Objects;
 

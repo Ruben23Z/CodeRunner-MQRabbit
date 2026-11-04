@@ -1,4 +1,4 @@
-package coderunner.runserver;
+package runserver;
 public class RunServerConfig {
 
     private final String ip;

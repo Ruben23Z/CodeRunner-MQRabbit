@@ -1,9 +1,8 @@
+package manager;
+
 
 import clientemanagerstubs.ClienteManagerServiceGrpc;
 import clientemanagerstubs.RunServerEndereco;
-import coderunner.manager.registration.RegistoServiceImpl;
-import coderunner.manager.registration.ServerRegistry;
-import coderunner.manager.selection.ClienteManagerServiceImpl;
 import com.google.protobuf.Empty;
 import io.grpc.*;
 import registostubs.RegistoServiceGrpc;

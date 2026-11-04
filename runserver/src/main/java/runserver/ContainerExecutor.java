@@ -1,4 +1,4 @@
-package coderunner.runserver;
+package runserver;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.WaitContainerResultCallback;
@@ -13,31 +13,23 @@ public class ContainerExecutor {
 
     private static final String IMAGEM = "python:3.12-slim";
     private static final long MEMORIA = 256L * 1024 * 1024;
-    private static final String COMANDO =
-            "timeout 10 python /work/prog.py < /work/input.txt > /work/out.txt 2> /work/err.txt;"
-                    + " echo $? > /work/exit.txt";
+    private static final String COMANDO = "timeout 10 python /work/prog.py < /work/input.txt > /work/out.txt 2> /work/err.txt;" + " echo $? > /work/exit.txt";
 
     private final DockerClient docker;
-    private final int porto;
 
-    public ContainerExecutor(DockerClient docker, int porto) {
+    public ContainerExecutor(DockerClient docker) {
         this.docker = docker;
-        this.porto = porto;
     }
 
-    public void executar(Path pasta,int porto, String uuid){
-        String nome = "run-" + porto +"-" +uuid;
+    public Resultado executar(Path pasta, int porto, String uuid) {
+        String nome = "run-" + porto + "-" + uuid;
         String containerId = null;
         String detalhe = null;
         try {
 
-            HostConfig hc = HostConfig.newHostConfig().withBinds(new Bind(pasta.toAbsolutePath().toString(), new Volume("/work")))
-                    .withNetworkMode("none").withMemory(MEMORIA).withMemorySwap(MEMORIA);
+            HostConfig hc = HostConfig.newHostConfig().withBinds(new Bind(pasta.toAbsolutePath().toString(), new Volume("/work"))).withNetworkMode("none").withMemory(MEMORIA).withMemorySwap(MEMORIA);
 
-            var create = docker.createContainerCmd(IMAGEM)
-                    .withName(nome)
-                    .withHostConfig(hc)
-                    .withCmd("sh", "-c", COMANDO);
+            var create = docker.createContainerCmd(IMAGEM).withName(nome).withHostConfig(hc).withCmd("sh", "-c", COMANDO);
 
             String user = utilizadorAtual();
             if (user != null) create.withUser(user);
@@ -45,10 +37,13 @@ public class ContainerExecutor {
             containerId = create.exec().getId();
             docker.startContainerCmd(containerId).exec();
 
-            boolean terminou = docker.waitContainerCmd(containerId).exec(new WaitContainerResultCallback())
-                    .awaitCompletion(30, TimeUnit.SECONDS);
+            boolean terminou = docker.waitContainerCmd(containerId).exec(new WaitContainerResultCallback()).awaitCompletion(30, TimeUnit.SECONDS);
+            if (!terminou) detalhe = "container não terminou em 30 s";
 
-
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            detalhe = "interrompido";
+            System.err.println("[" + uuid + "] " + detalhe);
         } catch (Exception e) {
             detalhe = "falha no container: " + e.getMessage();
             System.err.println("[" + uuid + "] " + detalhe);
@@ -67,7 +62,10 @@ public class ContainerExecutor {
 
 
     }
-    /** uid:gid em Linux/macOS; null em Windows. */
+
+    /**
+     * uid:gid em Linux/macOS; null em Windows.
+     */
     private static String utilizadorAtual() {
         if (System.getProperty("os.name").startsWith("Windows")) return null;
         var unix = new com.sun.security.auth.module.UnixSystem();

@@ -1,4 +1,4 @@
-package coderunner.runserver;
+package runserver;
 
 import execucaostubs.ExecucaoServiceGrpc;
 import io.grpc.Status;

@@ -1,4 +1,4 @@
-package coderunner.runserver;
+package runserver;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
