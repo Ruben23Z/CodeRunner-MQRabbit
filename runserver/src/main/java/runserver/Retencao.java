@@ -14,7 +14,7 @@ public class Retencao {
             t.setDaemon(true);            // não impede o servidor de terminar
             return t;
         });
-        agendador.scheduleAtFixedRate(() -> limpar(raiz, maxIdade), 1, 1, TimeUnit.MINUTES);
+        agendador.scheduleAtFixedRate(() -> limpar(raiz, maxIdade), 1, 1, TimeUnit.HOURS);
     }
 
     private void limpar(Path raiz, Duration maxIdade) {

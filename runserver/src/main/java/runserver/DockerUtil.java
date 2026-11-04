@@ -1,6 +1,7 @@
 package runserver;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
@@ -24,6 +25,18 @@ public class DockerUtil {
                     System.out.println("Removido container órfão " + nome);
                 }
             }
+        }
+    }
+    public void verificar(DockerClient docker, String imagem) {
+        try {
+            docker.pingCmd().exec();
+        } catch (Exception e) {
+            throw new IllegalStateException("Docker inacessível: " + e.getMessage(), e);
+        }
+        try {
+            docker.inspectImageCmd(imagem).exec();
+        } catch (NotFoundException e) {
+            throw new IllegalStateException("Imagem em falta. Executar: docker pull " + imagem, e);
         }
     }
 }
