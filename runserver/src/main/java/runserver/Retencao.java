@@ -11,7 +11,7 @@ public class Retencao {
     public void iniciar(Path raiz, Duration maxIdade) {
         var agendador = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r);
-            t.setDaemon(true);            // não impede o servidor de terminar
+            t.setDaemon(true);
             return t;
         });
         agendador.scheduleAtFixedRate(() -> limpar(raiz, maxIdade), 1, 1, TimeUnit.HOURS);

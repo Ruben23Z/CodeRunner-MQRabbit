@@ -48,6 +48,7 @@ public class RunServerMain {
             try {
                 server.awaitTermination();
             } catch (InterruptedException ignored) {
+                server.shutdown();
             }
         }));
 

@@ -16,6 +16,7 @@ public class ContainerExecutor {
     private static final String COMANDO = "timeout 10 python /work/prog.py < /work/input.txt > /work/out.txt 2> /work/err.txt;" + " echo $? > /work/exit.txt";
 
     private final DockerClient docker;
+    private final long CPU = 1000000000L;
 
     public ContainerExecutor(DockerClient docker) {
         this.docker = docker;
@@ -27,7 +28,7 @@ public class ContainerExecutor {
         String detalhe = null;
         try {
 
-            HostConfig hc = HostConfig.newHostConfig().withBinds(new Bind(pasta.toAbsolutePath().toString(), new Volume("/work"))).withNetworkMode("none").withMemory(MEMORIA).withMemorySwap(MEMORIA);
+            HostConfig hc = HostConfig.newHostConfig().withBinds(new Bind(pasta.toAbsolutePath().toString(), new Volume("/work"))).withNetworkMode("none").withMemory(MEMORIA).withMemorySwap(MEMORIA).withNanoCPUs(CPU);
 
             var create = docker.createContainerCmd(IMAGEM).withName(nome).withHostConfig(hc).withCmd("sh", "-c", COMANDO);
 

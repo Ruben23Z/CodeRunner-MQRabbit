@@ -1,8 +1,11 @@
 package runserver;
 
+import clientemanagerstubs.ClienteManagerServiceGrpc;
 import com.github.dockerjava.api.DockerClient;
 import com.google.protobuf.ByteString;
 import execucaostubs.*;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -12,17 +15,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
-
-import java.util.List;
 
 public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImplBase {
 
     private final CountDownLatch pronto = new CountDownLatch(1);
     private final Set<String> claims = ConcurrentHashMap.newKeySet();
+    private final Map<String, ManagedChannel> canais = new HashMap<>();
 
     private RedisPedidos redis;
     private DockerClient docker;
@@ -123,13 +123,13 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
         try {
             Files.createDirectories(pasta);
             Files.write(pasta.resolve("prog.py"), prog);
-            Files.write(pasta.resolve("input.txt"), input);      // vazio se não houver input
+            Files.write(pasta.resolve("input.txt"), input);
             redis.criar(id, cfg.getIp(), cfg.getPorto());
         } catch (IOException e) {
             apagarPasta(pasta);
             resp.onError(Status.INTERNAL.withDescription("erro em disco").asRuntimeException());
             return;
-        } catch (Exception e) {                                   // REDIS em baixo
+        } catch (Exception e) {
             apagarPasta(pasta);
             resp.onError(Status.UNAVAILABLE.withDescription("REDIS indisponível").asRuntimeException());
             return;
@@ -138,7 +138,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
 
         try {
             pool.execute(() -> executar(id, pasta));
-        } catch (RejectedExecutionException e) {                  // fila cheia
+        } catch (RejectedExecutionException e) {
             redis.apagar(id);
             apagarPasta(pasta);
             resp.onError(Status.RESOURCE_EXHAUSTED.withDescription("fila cheia").asRuntimeException());
@@ -186,6 +186,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     public void obterResultado(PedidoId req, StreamObserver<BlocoResultado> resp) {
         try {
             esperarPronto();
+
             String id = req.getId();
             try {
                 UUID.fromString(id);
@@ -201,8 +202,25 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             }
             if (c.isEmpty()) throw Status.NOT_FOUND.withDescription("pedido inexistente").asRuntimeException();
 
+            String resultado = c.get("resultado");
+            String mensagem = null;
+
+            if (resultado == null || "ENTREGUE".equals(resultado) || "EXPIRADO".equals(resultado)) {
+
+                if ("ENTREGUE".equals(resultado)) {
+                    mensagem = "resultado já obtido e removido";
+                } else if ("EXPIRADO".equals(resultado)) {
+                    mensagem = "resultado expirado e removido";
+                }
+
+                enviarInfo(resp, id, c, false, mensagem);
+                resp.onCompleted();
+                return;
+            }
+
+
             if (!cfg.endereco().equals(c.get("servidor")))
-                throw Status.UNIMPLEMENTED.withDescription("Camada B").asRuntimeException();   // caso 4, depois
+                throw Status.UNIMPLEMENTED.withDescription("Camada B").asRuntimeException();
 
             entregarLocal(id, resp);
         } catch (StatusRuntimeException e) {
@@ -219,25 +237,10 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             return;
         }
         try {
-            Map<String, String> c = redis.obter(id);              // reler SOB o claim
+            Map<String, String> c = redis.obter(id);
             String res = c.get("resultado");
             Path pasta = pastaPedidos.resolve(id);
 
-            if (res == null) {
-                enviarInfo(resp, id, c, false, null);
-                resp.onCompleted();
-                return;
-            }          // caso 2
-            if ("ENTREGUE".equals(res)) {
-                enviarInfo(resp, id, c, false, "resultado já obtido e removido");
-                resp.onCompleted();
-                return;
-            }
-            if ("EXPIRADO".equals(res)) {
-                enviarInfo(resp, id, c, false, "resultado expirado e removido");
-                resp.onCompleted();
-                return;
-            }
             if (!Files.isDirectory(pasta)) {
                 redis.marcarExpirado(id);
                 enviarInfo(resp, id, c, false, "resultado removido");
@@ -245,19 +248,18 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
                 return;
             }
 
-            enviarInfo(resp, id, c, true, null);                  // caso 5
+            enviarInfo(resp, id, c, true, null);
             enviarFicheiro(resp, pasta.resolve("out.txt"), true);
             enviarFicheiro(resp, pasta.resolve("err.txt"), false);
             resp.onCompleted();
-            redis.marcarEntregue(id);                             // só depois do onCompleted
+            redis.marcarEntregue(id);
             apagarPasta(pasta);
         } finally {
-            claims.remove(id);                                    // sempre
+            claims.remove(id);
         }
     }
 
-    private void enviarInfo(StreamObserver<BlocoResultado> resp, String id, Map<String, String> c,
-                            boolean disponivel, String msg) {
+    private void enviarInfo(StreamObserver<BlocoResultado> resp, String id, Map<String, String> c, boolean disponivel, String msg) {
         InfoPedido.Builder b = InfoPedido.newBuilder().setId(id).setResultadoDisponivel(disponivel);
         if (c != null && c.get("estado") != null) b.setEstado(Estado.valueOf(c.get("estado")));
         if (c != null && c.get("codigoSaida") != null) b.setCodigoSaida(Integer.parseInt(c.get("codigoSaida")));
@@ -276,6 +278,34 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
                 resp.onNext(stdout ? b.setOut(bs).build() : b.setErr(bs).build());
                 total += n;
             }
+        }
+    }
+
+    public void reencaminhar(String id, String dono, StreamObserver<BlocoResultado> resp) {
+        PedidoId pedidoId = PedidoId.newBuilder().setId(id).build();
+        try {
+            ManagedChannel canal = canais.get(dono);
+            ExecucaoServiceGrpc.ExecucaoServiceBlockingStub stub = ExecucaoServiceGrpc.newBlockingStub(canal);
+            Iterator<BlocoResultado> it = stub.withDeadlineAfter(30, TimeUnit.SECONDS).obterResultado(PedidoId.newBuilder().setId(id).build());
+
+
+            while (it.hasNext()) {
+                resp.onNext(it.next());
+            }
+
+            resp.onCompleted();
+        } catch (StatusRuntimeException e) {
+            Status.Code codigo = e.getStatus().getCode();
+            if (codigo == Status.Code.UNAVAILABLE || codigo == Status.Code.DEADLINE_EXCEEDED) {
+                throw Status.UNAVAILABLE.withDescription("RunServer dono inacessível").asRuntimeException();
+            }
+            throw e; // NOT_FOUND, etc.: passa como veio
+        }
+    }
+
+    public synchronized void fechar() {
+        for (ManagedChannel canal : canais.values()) {
+            canal.shutdownNow();
         }
     }
 
