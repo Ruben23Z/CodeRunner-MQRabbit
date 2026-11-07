@@ -7,13 +7,16 @@ import registostubs.RedisInfo;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RunServerMain {
     private static final String IMAGEM = "python:3.12-slim";
+    static Set<String> claims = ConcurrentHashMap.newKeySet();
 
     public static void main(String[] args) throws Exception {
         RunServerConfig cfg;
@@ -40,7 +43,7 @@ public class RunServerMain {
 
 
         // Começar a ouvir (os pedidos esperam até o servidor estar pronto)
-        ExecucaoServiceImpl servico = new ExecucaoServiceImpl();
+        ExecucaoServiceImpl servico = new ExecucaoServiceImpl(claims);
         Server server = ServerBuilder.forPort(cfg.getPorto()).addService(servico).build().start();
         System.out.println("RunServer a ouvir em " + cfg.endereco());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -82,8 +85,8 @@ public class RunServerMain {
 
         dockerUtil.removerOrfaos(docker, cfg.getPorto());
         Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto()));
-        Retencao retencao = new Retencao();
-        retencao.iniciar(pastaPedidos, Duration.ofHours(24));
+        Retencao retencao = new Retencao(pastaPedidos, Duration.ofHours(24), Duration.ofHours(1), claims, redisPedidos);
+        retencao.iniciar();
 
 
         AtomicInteger n = new AtomicInteger();
@@ -95,6 +98,7 @@ public class RunServerMain {
                 pool.awaitTermination(15, TimeUnit.SECONDS);
             } catch (InterruptedException ignored) {
             }
+            servico.fechar();
             redisPedidos.fechar();
             try {
                 docker.close();
@@ -111,5 +115,9 @@ public class RunServerMain {
         System.err.println("Erro: " + mensagem);
         if (server != null) server.shutdownNow();
         System.exit(1);
+    }
+
+    public Set<String> getClaims() {
+        return claims;
     }
 }

@@ -1,6 +1,5 @@
 package runserver;
 
-import clientemanagerstubs.ClienteManagerServiceGrpc;
 import com.github.dockerjava.api.DockerClient;
 import com.google.protobuf.ByteString;
 import execucaostubs.*;
@@ -20,9 +19,11 @@ import java.util.concurrent.*;
 
 public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImplBase {
 
+    private static final int MAX_BYTES = 1024 * 1024;
+
     private final CountDownLatch pronto = new CountDownLatch(1);
-    private final Set<String> claims = ConcurrentHashMap.newKeySet();
-    private final Map<String, ManagedChannel> canais = new HashMap<>();
+    private final ConcurrentHashMap<String, ManagedChannel> canais = new ConcurrentHashMap<>();
+    private final Set<String> claims;
 
     private RedisPedidos redis;
     private DockerClient docker;
@@ -30,8 +31,11 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     private Path pastaPedidos;
     private RunServerConfig cfg;
     private ContainerExecutor executor;
-    private static final int MAX_BYTES = 1024 * 1024;
 
+
+    public ExecucaoServiceImpl(Set<String> claims) {
+        this.claims = claims;
+    }
 
     public void libertar(RedisPedidos redis, DockerClient docker, ThreadPoolExecutor pool, Path pastaPedidos, RunServerConfig cfg) {
         this.redis = redis;
@@ -219,9 +223,11 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             }
 
 
-            if (!cfg.endereco().equals(c.get("servidor")))
-                throw Status.UNIMPLEMENTED.withDescription("Camada B").asRuntimeException();
-
+            String dono = c.get("servidor");
+            if (!cfg.endereco().equals(dono)) {
+                reencaminhar(id, dono, resp);
+                return;
+            }
             entregarLocal(id, resp);
         } catch (StatusRuntimeException e) {
             resp.onError(e);
@@ -241,6 +247,17 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             String res = c.get("resultado");
             Path pasta = pastaPedidos.resolve(id);
 
+            if ("ENTREGUE".equals(res) || "EXPIRADO".equals(res)) {
+                String msg;
+                if ("ENTREGUE".equals(res)) {
+                    msg = "resultado já obtido e removido";
+                } else {
+                    msg = "resultado expirado e removido";
+                }
+                enviarInfo(resp, id, c, false, msg);
+                resp.onCompleted();
+                return;
+            }
             if (!Files.isDirectory(pasta)) {
                 redis.marcarExpirado(id);
                 enviarInfo(resp, id, c, false, "resultado removido");
@@ -284,7 +301,18 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     public void reencaminhar(String id, String dono, StreamObserver<BlocoResultado> resp) {
         PedidoId pedidoId = PedidoId.newBuilder().setId(id).build();
         try {
-            ManagedChannel canal = canais.get(dono);
+            // abre o canal ao dono só na 1.ª vez; depois reutiliza
+            ManagedChannel canal;
+            synchronized (canais) {
+                canal = canais.get(dono);
+                if (canal == null) {
+                    int pos = dono.lastIndexOf(':');
+                    String ip = dono.substring(0, pos);
+                    int porto = Integer.parseInt(dono.substring(pos + 1));
+                    canal = ManagedChannelBuilder.forAddress(ip, porto).usePlaintext().build();
+                    canais.put(dono, canal);
+                }
+            }
             ExecucaoServiceGrpc.ExecucaoServiceBlockingStub stub = ExecucaoServiceGrpc.newBlockingStub(canal);
             Iterator<BlocoResultado> it = stub.withDeadlineAfter(30, TimeUnit.SECONDS).obterResultado(PedidoId.newBuilder().setId(id).build());
 
@@ -310,6 +338,6 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     }
 
     private void apagarPasta(Path pasta) {
-        new Retencao().apagar(pasta);
+        Retencao.apagar(pasta);
     }
 }
