@@ -25,7 +25,10 @@ public class ClientMain {
     }
 
     public static void main(String[] args) {
-        if (args.length != 2) System.err.println("Uso: ClientMain <managerIp> <managerPorto>");
+        if (args.length != 2) {
+            System.err.println("Uso: ClientMain <managerIp> <managerPorto>");
+            return;
+        }
 
 
         String ip = args[0];
@@ -103,43 +106,13 @@ public class ClientMain {
                 }
 
             } catch (StatusRuntimeException e) {
-                System.out.println("Erro: " + e.getStatus().getCode()
-                        + " - " + e.getStatus().getDescription());
+                System.out.println("Erro: " + e.getStatus().getCode() + " - " + e.getStatus().getDescription());
             }
         }
     }
 
     private void obterServidor() throws InterruptedException {
-
-        RunServerEndereco rse = null;
-        int tentativas = 0;
-
-        while (rse == null && tentativas < MAX_TENTATIVAS) {
-            tentativas++;
-
-            try {
-                rse = manager.obterServidor();
-
-                if (rse == null && tentativas < MAX_TENTATIVAS) {
-                    System.out.println("Sem servidores disponíveis, nova tentativa em 2 s...");
-                    Thread.sleep(2000);
-                }
-
-            } catch (StatusRuntimeException e) {
-
-                if (e.getStatus().getCode() != Status.Code.UNAVAILABLE || tentativas >= MAX_TENTATIVAS) {
-                    throw e;
-                }
-
-                System.out.println("Sem servidores disponíveis, nova tentativa em 2 s...");
-                Thread.sleep(2000);
-            }
-        }
-
-        if (rse == null) {
-            throw Status.UNAVAILABLE.withDescription("Não foi possível obter um servidor.").asRuntimeException();
-        }
-
+        RunServerEndereco rse = manager.obterServidor();
         if (servidor != null) {
             servidor.fechar();
         }

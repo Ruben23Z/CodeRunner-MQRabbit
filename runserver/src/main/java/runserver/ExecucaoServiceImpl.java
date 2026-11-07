@@ -238,7 +238,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
 
     private void entregarLocal(String id, StreamObserver<BlocoResultado> resp) throws IOException {
         if (!claims.add(id)) {
-            enviarInfo(resp, id, null, false, "entrega em curso");
+            enviarInfo(resp, id, redis.obter(id), false, "entrega em curso");
             resp.onCompleted();
             return;
         }
@@ -269,7 +269,11 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             enviarFicheiro(resp, pasta.resolve("out.txt"), true);
             enviarFicheiro(resp, pasta.resolve("err.txt"), false);
             resp.onCompleted();
-            redis.marcarEntregue(id);
+            try {
+                redis.marcarEntregue(id);
+            } catch (Exception e) {
+                System.err.println("[" + id + "] falha a gravar ENTREGUE: " + e);
+            }
             apagarPasta(pasta);
         } finally {
             claims.remove(id);

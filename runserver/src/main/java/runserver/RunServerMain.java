@@ -84,7 +84,7 @@ public class RunServerMain {
         }
 
         dockerUtil.removerOrfaos(docker, cfg.getPorto());
-        Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto()));
+        Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto())).toAbsolutePath();
         Retencao retencao = new Retencao(pastaPedidos, Duration.ofHours(24), Duration.ofHours(1), claims, redisPedidos);
         retencao.iniciar();
 

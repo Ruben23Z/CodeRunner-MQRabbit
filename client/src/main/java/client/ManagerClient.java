@@ -24,6 +24,7 @@ public class ManagerClient {
     }
 
     public RunServerEndereco obterServidor() throws InterruptedException, StatusRuntimeException {
+        StatusRuntimeException ultimo = null;
         for (int i = 0; i < 3; i++) {
             try {
                 return stub.withDeadlineAfter(5, TimeUnit.SECONDS).obterServidor(Empty.getDefaultInstance());
@@ -33,10 +34,11 @@ public class ManagerClient {
                 System.out.println("tentativa nº:" + i);
 
                 if (e.getStatus().getCode() != Status.Code.UNAVAILABLE) throw e;
-                if (i < 2) Thread.sleep(PAUSA_MS);                                // correções 3 e 4
+                ultimo = e;
+                if (i < 2) Thread.sleep(PAUSA_MS);
             }
         }
-        throw new InterruptedException("erro");
+        throw ultimo;
     }
 
 
