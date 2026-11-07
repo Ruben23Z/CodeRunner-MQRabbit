@@ -7,16 +7,13 @@ import registostubs.RedisInfo;
 
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RunServerMain {
     private static final String IMAGEM = "python:3.12-slim";
-    static Set<String> claims = ConcurrentHashMap.newKeySet();
 
     public static void main(String[] args) throws Exception {
         RunServerConfig cfg;
@@ -43,7 +40,7 @@ public class RunServerMain {
 
 
         // Começar a ouvir (os pedidos esperam até o servidor estar pronto)
-        ExecucaoServiceImpl servico = new ExecucaoServiceImpl(claims);
+        ExecucaoServiceImpl servico = new ExecucaoServiceImpl();
         Server server = ServerBuilder.forPort(cfg.getPorto()).addService(servico).build().start();
         System.out.println("RunServer a ouvir em " + cfg.endereco());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -85,7 +82,7 @@ public class RunServerMain {
 
         dockerUtil.removerOrfaos(docker, cfg.getPorto());
         Path pastaPedidos = Path.of("pedidos", String.valueOf(cfg.getPorto())).toAbsolutePath();
-        Retencao retencao = new Retencao(pastaPedidos, Duration.ofHours(24), Duration.ofHours(1), claims, redisPedidos);
+        Retencao retencao = new Retencao(pastaPedidos, Duration.ofHours(24), Duration.ofHours(1), servico, redisPedidos);
         retencao.iniciar();
 
 
@@ -93,12 +90,12 @@ public class RunServerMain {
         ThreadPoolExecutor pool = new ThreadPoolExecutor(cfg.getWorkers(), cfg.getWorkers(), 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(cfg.getFilaMax()), r -> new Thread(r, "worker-" + n.incrementAndGet()), new ThreadPoolExecutor.AbortPolicy());
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            server.shutdown();
             pool.shutdownNow();
             try {
                 pool.awaitTermination(15, TimeUnit.SECONDS);
             } catch (InterruptedException ignored) {
             }
-            servico.fechar();
             redisPedidos.fechar();
             try {
                 docker.close();
@@ -106,7 +103,7 @@ public class RunServerMain {
             }
         }));
 
-        servico.libertar(redisPedidos, docker, pool, pastaPedidos, cfg);
+        servico.arrancar(redisPedidos, docker, pool, pastaPedidos, cfg);
         System.out.println("RunServer pronto (N=" + cfg.getWorkers() + ", Q=" + cfg.getFilaMax() + ")");
         server.awaitTermination();
     }
@@ -117,7 +114,4 @@ public class RunServerMain {
         System.exit(1);
     }
 
-    public Set<String> getClaims() {
-        return claims;
-    }
 }

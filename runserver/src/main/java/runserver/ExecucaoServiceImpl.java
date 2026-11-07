@@ -23,7 +23,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
 
     private final CountDownLatch pronto = new CountDownLatch(1);
     private final ConcurrentHashMap<String, ManagedChannel> canais = new ConcurrentHashMap<>();
-    private final Set<String> claims;
+    private final List<String> claims = new ArrayList<>();
 
     private RedisPedidos redis;
     private DockerClient docker;
@@ -33,11 +33,11 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     private ContainerExecutor executor;
 
 
-    public ExecucaoServiceImpl(Set<String> claims) {
-        this.claims = claims;
+    public ExecucaoServiceImpl() {
+
     }
 
-    public void libertar(RedisPedidos redis, DockerClient docker, ThreadPoolExecutor pool, Path pastaPedidos, RunServerConfig cfg) {
+    public void arrancar(RedisPedidos redis, DockerClient docker, ThreadPoolExecutor pool, Path pastaPedidos, RunServerConfig cfg) {
         this.redis = redis;
         this.docker = docker;
         this.pool = pool;
@@ -45,6 +45,17 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
         this.cfg = cfg;
         this.executor = new ContainerExecutor(docker);
         pronto.countDown();
+    }
+
+    // true se conseguiu reservar o id; false se já estava reservado
+    public synchronized boolean reservar(String id) {
+        if (claims.contains(id)) return false;
+        claims.add(id);
+        return true;
+    }
+
+    public synchronized void libertar(String id) {
+        claims.remove(id);
     }
 
     /**
@@ -237,7 +248,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     }
 
     private void entregarLocal(String id, StreamObserver<BlocoResultado> resp) throws IOException {
-        if (!claims.add(id)) {
+        if (!reservar(id)) {
             enviarInfo(resp, id, redis.obter(id), false, "entrega em curso");
             resp.onCompleted();
             return;
@@ -276,7 +287,7 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
             }
             apagarPasta(pasta);
         } finally {
-            claims.remove(id);
+            libertar(id);
         }
     }
 
@@ -303,28 +314,16 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
     }
 
     public void reencaminhar(String id, String dono, StreamObserver<BlocoResultado> resp) {
-        PedidoId pedidoId = PedidoId.newBuilder().setId(id).build();
+        int pos = dono.lastIndexOf(':');
+        String ip = dono.substring(0, pos);
+        int porto = Integer.parseInt(dono.substring(pos + 1));
+        ManagedChannel canal = ManagedChannelBuilder.forAddress(ip, porto).usePlaintext().build();
         try {
-            // abre o canal ao dono só na 1.ª vez; depois reutiliza
-            ManagedChannel canal;
-            synchronized (canais) {
-                canal = canais.get(dono);
-                if (canal == null) {
-                    int pos = dono.lastIndexOf(':');
-                    String ip = dono.substring(0, pos);
-                    int porto = Integer.parseInt(dono.substring(pos + 1));
-                    canal = ManagedChannelBuilder.forAddress(ip, porto).usePlaintext().build();
-                    canais.put(dono, canal);
-                }
-            }
             ExecucaoServiceGrpc.ExecucaoServiceBlockingStub stub = ExecucaoServiceGrpc.newBlockingStub(canal);
             Iterator<BlocoResultado> it = stub.withDeadlineAfter(30, TimeUnit.SECONDS).obterResultado(PedidoId.newBuilder().setId(id).build());
-
-
             while (it.hasNext()) {
                 resp.onNext(it.next());
             }
-
             resp.onCompleted();
         } catch (StatusRuntimeException e) {
             Status.Code codigo = e.getStatus().getCode();
@@ -332,14 +331,11 @@ public class ExecucaoServiceImpl extends ExecucaoServiceGrpc.ExecucaoServiceImpl
                 throw Status.UNAVAILABLE.withDescription("RunServer dono inacessível").asRuntimeException();
             }
             throw e; // NOT_FOUND, etc.: passa como veio
-        }
-    }
-
-    public synchronized void fechar() {
-        for (ManagedChannel canal : canais.values()) {
+        } finally {
             canal.shutdownNow();
         }
     }
+
 
     private void apagarPasta(Path pasta) {
         Retencao.apagar(pasta);

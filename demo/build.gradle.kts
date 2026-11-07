@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     implementation(project(":contract"))
+    implementation(project(":client"))
 }
 
 application { mainClass = "demo.DemoMain" }

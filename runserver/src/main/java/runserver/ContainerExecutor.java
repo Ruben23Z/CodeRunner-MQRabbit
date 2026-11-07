@@ -16,8 +16,7 @@ public class ContainerExecutor {
     private static final String COMANDO = "timeout 10 python /work/prog.py < /work/input.txt > /work/out.txt 2> /work/err.txt;" + " echo $? > /work/exit.txt";
 
     private final DockerClient docker;
-    private final long CPU = 1000000000L;
-
+    private final long CPU = 500_000_000L;// 0,5 CPU
     public ContainerExecutor(DockerClient docker) {
         this.docker = docker;
     }

@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
 
@@ -14,18 +12,16 @@ public class Retencao {
     private final Path raiz;
     private final Duration maxIdade;
     private final Duration periodo;
-    private Set<String> claims;
     private RedisPedidos redisPedidos;
 
-    public Retencao(Path raiz, Duration maxIdade, Duration periodo, Set<String> claims, RedisPedidos redis) {
+    private ExecucaoServiceImpl servico;
 
-
+    public Retencao(Path raiz, Duration maxIdade, Duration periodo, ExecucaoServiceImpl servico, RedisPedidos redis) {
         this.raiz = raiz;
         this.maxIdade = maxIdade;
         this.periodo = periodo;
-        this.claims = claims;
+        this.servico = servico;
         this.redisPedidos = redis;
-
     }
 
 
@@ -56,12 +52,12 @@ public class Retencao {
                 } catch (IllegalArgumentException e) {
                     continue;
                 }
-                if (!claims.add(id)) continue;          // entrega em curso: salta
+                if (!servico.reservar(id)) continue;
                 try {
                     apagar(pasta);
                     redisPedidos.marcarExpirado(id);
                 } finally {
-                    claims.remove(id);
+                    servico.libertar(id);
                 }
             }
         }

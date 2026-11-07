@@ -97,7 +97,7 @@ public class ClientMain {
                         break;
 
                     case 4:
-                        obterServidor();
+                        obterServidor(); // pa trocar de server
                         break;
 
                     case 99:

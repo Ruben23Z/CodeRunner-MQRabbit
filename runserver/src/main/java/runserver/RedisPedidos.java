@@ -2,7 +2,6 @@ package runserver;
 
 import redis.clients.jedis.RedisClient;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -61,14 +60,14 @@ public class RedisPedidos {
      * Igual, com um detalhe curto de falha interna (ex.: container não arrancou, watchdog).
      */
     public void concluir(String id, String estado, int codigoSaida, String detalhe) {
-        Map<String, String> campos = new HashMap<>();
-        campos.put("estado", estado);
-        campos.put("codigoSaida", String.valueOf(codigoSaida));
-        campos.put("resultado", "DISPONIVEL");
         if (detalhe != null && !detalhe.isBlank()) {
-            campos.put("detalhe", detalhe.length() > MAX_DETALHE ? detalhe.substring(0, MAX_DETALHE) : detalhe);
+            String d = detalhe.length() > MAX_DETALHE ? detalhe.substring(0, MAX_DETALHE) : detalhe;
+            redis.hset(chave(id), Map.of("estado", estado, "codigoSaida", String.valueOf(codigoSaida),
+                    "resultado", "DISPONIVEL", "detalhe", d));
+        } else {
+            redis.hset(chave(id), Map.of("estado", estado, "codigoSaida", String.valueOf(codigoSaida),
+                    "resultado", "DISPONIVEL"));
         }
-        redis.hset(chave(id), campos);
     }
 
     /**
